@@ -64,6 +64,8 @@ for string, district in df_district:
     scaler, train_scaled[string], test_scaled[string] = scale(train[string], test[string])
 
 lstm_model = fit_lstm(train_scaled['Flushing'], 1, 50, 10)
+train_reshaped = train_scaled['Flushing'][:, 1:].reshape(train_scaled['Flushing'].shape[0], 1, train_scaled['Flushing'].shape[1]-1)
+lstm_model.predict(train_reshaped, batch_size=1)
 
 predictions = list()
 i = 0
@@ -72,13 +74,17 @@ for scaled in test_scaled['Flushing']:
     X, y = scaled[1:], scaled[0]
     yhat = forecast_lstm(lstm_model, 1, X)
     # invert scaling
-    yhat = invert_scale(scaler, X, yhat)
+    # yhat = invert_scale(scaler, X, yhat)
     # # invert differencing
     # yhat = inverse_difference(raw_values, yhat, len(test_scaled) + 1 - i)
     # store forecast
     predictions.append(yhat)
-    expected = test['Flushing'][i, 0]
+    expected = test_scaled['Flushing'][i, 0]
     i = i + 1
     print("Value: {0}, Expected: {1}".format(expected, yhat))
+
+pyplot.plot(test_scaled['Flushing'][:, 0])
+pyplot.plot(predictions)
+pyplot.show()
 
 print('a')
