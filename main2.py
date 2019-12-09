@@ -81,6 +81,7 @@ def forecast_lstm(model, batch_size, X):
     yhat = model.predict(X, batch_size=batch_size)
     return yhat[0, 0]
 
+tf.keras.backend.clear_session()
 # init dictionaries
 train = dict()
 test = dict()
@@ -107,32 +108,31 @@ for name, data in df_district:
     # transform the scale of the data
     scaler, train_scaled[name], test_scaled[name] = scale(train[name], test[name])
 
-tf.keras.backend.clear_session()
 # fit the model
-lstm_model = fit_lstm(train_scaled["Yorkville West"], 1, 1, 4)
+lstm_model = fit_lstm(train_scaled["Financial District South"], 1, 1000, 4)
 # forecast the entire training dataset to build up state for forecasting
-train_reshaped = train_scaled["Yorkville West"][:, 0].reshape(len(train_scaled["Yorkville West"]), 1, 1)
+train_reshaped = train_scaled["Financial District South"][:, 0].reshape(len(train_scaled["Financial District South"]), 1, 1)
 lstm_model.predict(train_reshaped, batch_size=1)
 
 # walk-forward validation on the test data
 predictions = list()
-for i in range(len(test_scaled["Yorkville West"])):
+for i in range(len(test_scaled["Financial District South"])):
     # make one-step forecast
-    X, y = test_scaled["Yorkville West"][i, 0:-1], test_scaled["Yorkville West"][i, -1]
+    X, y = test_scaled["Financial District South"][i, 0:-1], test_scaled["Financial District South"][i, -1]
     yhat = forecast_lstm(lstm_model, 1, X)
     # invert scaling
     yhat = invert_scale(scaler, X, yhat)
     # invert differencing
-    yhat = inverse_difference(data_dictionary["Yorkville West"], yhat, len(test_scaled["Yorkville West"]) + 1 - i)
+    yhat = inverse_difference(data_dictionary["Financial District South"], yhat, len(test_scaled["Financial District South"]) + 1 - i)
     # store forecast
     predictions.append(yhat)
-    expected = data_dictionary["Yorkville West"][len(train["Yorkville West"]) + i + 1]
+    expected = data_dictionary["Financial District South"][len(train["Financial District South"]) + i + 1]
     print("Expected: {0}, Predicted: {1}".format(expected, yhat))
 
 # report performance
-rmse = sqrt(mean_squared_error(data_dictionary["Yorkville West"][-73:], predictions))
+rmse = sqrt(mean_squared_error(data_dictionary["Financial District South"][-73:], predictions))
 print('Test RMSE: %.3f' % rmse)
 # line plot of observed vs predicted
-pyplot.plot(data_dictionary["Yorkville West"][-73:])
+pyplot.plot(data_dictionary["Financial District South"][-73:])
 pyplot.plot(predictions)
 pyplot.show()
