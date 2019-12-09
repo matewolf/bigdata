@@ -93,6 +93,7 @@ train = dict()
 test = dict()
 train_scaled = dict()
 test_scaled = dict()
+scaler_dict = dict()
 
 # load dataset
 df = read_csv('train.csv', header=0, index_col=0)
@@ -106,33 +107,37 @@ for name, data in df_district:
     # split data into train and test-sets
     train[name], test[name] = supervised_values[name][0:-73], supervised_values[name][-73:]
     # transform the scale of the data
-    scaler, train_scaled[name], test_scaled[name] = scale(train[name], test[name])
+    scaler_dict[name], train_scaled[name], test_scaled[name] = scale(train[name], test[name])
 
-# fit the model
-lstm_model = fit_lstm(train_scaled["Financial District South"], 1, 1000, 4)
-# forecast the entire training dataset to build up state for forecasting
-train_reshaped = train_scaled["Financial District South"][:, 0].reshape(len(train_scaled["Financial District South"]), 1, 1)
-lstm_model.predict(train_reshaped, batch_size=1)
+names = ("Financial District South", "Allerton/Pelham Gardens")
+for name in names:
+    # fit the model
+    lstm_model = fit_lstm(train_scaled[name], 1, 150, 4)
+    # forecast the entire training dataset to build up state for forecasting
+    train_reshaped = train_scaled[name][:, 0].reshape(len(train_scaled[name]), 1, 1)
+    lstm_model.predict(train_reshaped, batch_size=1)
 
-# walk-forward validation on the test data
-predictions = list()
-for i in range(len(test_scaled["Financial District South"])):
-    # make one-step forecast
-    X, y = test_scaled["Financial District South"][i, 0:-1], test_scaled["Financial District South"][i, -1]
-    yhat = forecast_lstm(lstm_model, 1, X)
-    # invert scaling
-    yhat = invert_scale(scaler, X, yhat)
-    # invert differencing
-    yhat = inverse_difference(data_dictionary["Financial District South"], yhat, len(test_scaled["Financial District South"]) + 1 - i)
-    # store forecast
-    predictions.append(yhat)
-    expected = data_dictionary["Financial District South"][len(train["Financial District South"]) + i + 1]
-    print("Expected: {0}, Predicted: {1}".format(expected, yhat))
+    # walk-forward validation on the test data
+    predictions = list()
+    for i in range(len(test_scaled[name])):
+        # make one-step forecast
+        X, y = test_scaled[name][i, 0:-1], test_scaled[name][i, -1]
+        yhat = forecast_lstm(lstm_model, 1, X)
+        # invert scaling
+        yhat = invert_scale(scaler_dict[name], X, yhat)
+        # invert differencing
+        yhat = inverse_difference(data_dictionary[name], yhat, len(test_scaled[name]) + 1 - i)
+        # store forecast
+        predictions.append(yhat)
+        expected = data_dictionary[name][len(train[name]) + i]
+        # expected = y
+        print("Expected: {0}, Predicted: {1}".format(expected, yhat))
 
-# report performance
-rmse = sqrt(mean_squared_error(data_dictionary["Financial District South"][-73:], predictions))
-print('Test RMSE: %.3f' % rmse)
-# line plot of observed vs predicted
-pyplot.plot(data_dictionary["Financial District South"][-73:])
-pyplot.plot(predictions)
-pyplot.show()
+    # report performance
+    rmse = sqrt(mean_squared_error(data_dictionary[name][-73:], predictions))
+    print('Test RMSE: %.3f' % rmse)
+    # line plot of observed vs predicted
+    pyplot.plot(data_dictionary[name][-73:])
+    # pyplot.plot(test_scaled[name][:, -1])
+    pyplot.plot(predictions)
+    pyplot.show()
