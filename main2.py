@@ -137,6 +137,9 @@ for name in names:
     rmse = sqrt(mean_squared_error(data_dictionary[name][-74:-1], predictions))
     print('Test RMSE: %.3f' % rmse)
     # line plot of observed vs predicted
+    pyplot.title(name)
+    pyplot.xlabel("day")
+    pyplot.ylabel("income [$]")
     pyplot.plot(data_dictionary[name][-74:-1])
     pyplot.plot(predictions)
     pyplot.show()
