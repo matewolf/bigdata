@@ -109,10 +109,10 @@ for name, data in df_district:
     # transform the scale of the data
     scaler_dict[name], train_scaled[name], test_scaled[name] = scale(train[name], test[name])
 
-names = ("Financial District South", "Allerton/Pelham Gardens")
+names = ("JFK Airport", "Governor's Island/Ellis Island/Liberty Island")
 for name in names:
     # fit the model
-    lstm_model = fit_lstm(train_scaled[name], 1, 150, 4)
+    lstm_model = fit_lstm(train_scaled[name], 1, 2, 4)
     # forecast the entire training dataset to build up state for forecasting
     train_reshaped = train_scaled[name][:, 0].reshape(len(train_scaled[name]), 1, 1)
     lstm_model.predict(train_reshaped, batch_size=1)
@@ -134,10 +134,13 @@ for name in names:
         print("Expected: {0}, Predicted: {1}".format(expected, yhat))
 
     # report performance
-    rmse = sqrt(mean_squared_error(data_dictionary[name][-73:], predictions))
+    rmse = sqrt(mean_squared_error(data_dictionary[name][-74:-1], predictions))
     print('Test RMSE: %.3f' % rmse)
     # line plot of observed vs predicted
-    pyplot.plot(data_dictionary[name][-73:])
-    # pyplot.plot(test_scaled[name][:, -1])
+    pyplot.plot(data_dictionary[name][-74:-1])
     pyplot.plot(predictions)
     pyplot.show()
+    # pyplot.savefig(name + ".png")
+
+    with open("mse.txt", "a+") as file:
+        file.write("District name: {0}\trmse: {1}".format(name, rmse))
