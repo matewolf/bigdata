@@ -13,8 +13,14 @@ from matplotlib import pyplot
 import tensorflow as tf
 import numpy
 
+# A regresszióhoz egy LSTM típusú neurális hálót használtunk. Az LSTM típusú háló egy visszacsatolt neurális háló,
+# tehát a bemenete nem csak az aktuáls bemenetet, hanem a korábbi bemeneteket is. Az LSTM hálók abban különböznek a
+# többi visszacsatolt hálótól, hogy itt szerették volna szabályozni a háló emlékezését a fejlesztők,  így a háló
+# tartalmaz egy belső állapotot, amely memóriaként működik és kevésbéérzékeny a back propagation műveletre.
 
-# frame a sequence as a supervised learning problem
+# A következő függvények segédfüggvények
+
+# Az adatsor felügyelt tanulásra alkalmassá tétele
 def timeseries_to_supervised(data, lag=1):
     df = DataFrame(data)
     columns = [df.shift(i) for i in range(1, lag + 1)]
@@ -24,7 +30,8 @@ def timeseries_to_supervised(data, lag=1):
     return df
 
 
-# create a differenced series
+# Hogy kisebb számokkal kelljen dolgozni, így az időpillanatko közötti változás lesz az input. Ezt a különbséget
+# állítja elő a függvény.
 def difference(dataset, interval=1):
     diff = list()
     for i in range(interval, len(dataset)):
@@ -33,12 +40,12 @@ def difference(dataset, interval=1):
     return Series(diff)
 
 
-# invert differenced value
+# Visszalakít a különbségi értékekről.
 def inverse_difference(history, yhat, interval=1):
     return yhat + history[-interval]
 
 
-# scale train and test data to [-1, 1]
+# [-1, 1] intervallumon skálázza az értékeket, ahol -1 a legkisebb érték, és 1 a legnagyobb érték.
 def scale(train, test):
     # fit scaler
     scaler = MinMaxScaler(feature_range=(-1, 1))
@@ -52,7 +59,7 @@ def scale(train, test):
     return scaler, train_scaled, test_scaled
 
 
-# inverse scaling for a forecasted value
+# Skála invertálása
 def invert_scale(scaler, X, value):
     new_row = [x for x in X] + [value]
     array = numpy.array(new_row)
@@ -61,7 +68,7 @@ def invert_scale(scaler, X, value):
     return inverted[0, -1]
 
 
-# fit an LSTM network to training data
+# Háló tanítása
 def fit_lstm(train, batch_size, nb_epoch, neurons):
     X, y = train[:, 0:-1], train[:, -1]
     X = X.reshape(X.shape[0], 1, X.shape[1])
@@ -70,19 +77,19 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
     for i in range(nb_epoch):
-        model.fit(X, y, epochs=1, batch_size=batch_size, verbose=0, shuffle=False)
+        model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
         model.reset_states()
     return model
 
 
-# make a one-step forecast
+# Predikció
 def forecast_lstm(model, batch_size, X):
     X = X.reshape(1, 1, len(X))
     yhat = model.predict(X, batch_size=batch_size)
     return yhat[0, 0]
 
 tf.keras.backend.clear_session()
-# init dictionaries
+# init
 train = dict()
 test = dict()
 data_dictionary = dict()
@@ -95,7 +102,9 @@ train_scaled = dict()
 test_scaled = dict()
 scaler_dict = dict()
 
-# load dataset
+# Az adatsor betöltése. Az adatsort egy dictionary-be töltöttük, így a kulcsok megadásával lehet futtatni a programot
+# az egyes kerületekre. Az adatsorunk összesen 365 napnyi adat volt, amelyet 80-20%-ban osztottunk ketté. 80%-ával az
+# adatoknak tanítottunk, 20%-ával teszteltük a betanított hálót.
 df = read_csv('train.csv', header=0, index_col=0)
 df_district = df.groupby('Zone')
 for name, data in df_district:
@@ -109,15 +118,17 @@ for name, data in df_district:
     # transform the scale of the data
     scaler_dict[name], train_scaled[name], test_scaled[name] = scale(train[name], test[name])
 
-names = ("JFK Airport", "Governor's Island/Ellis Island/Liberty Island")
+# A names tupleban szereplő kerületeket prediktáljuk.
+names = ("Union Sq", "JFK Airport")
 for name in names:
-    # fit the model
-    lstm_model = fit_lstm(train_scaled[name], 1, 2, 4)
-    # forecast the entire training dataset to build up state for forecasting
+    # A modell tanítása.
+    lstm_model = fit_lstm(train_scaled[name], 1, 300, 4)
+
+    # A háló jellegéből adódóan a tanítás után végig kell futtatni a tanító adatokat, hogy a háló tudjin emlékezni.
     train_reshaped = train_scaled[name][:, 0].reshape(len(train_scaled[name]), 1, 1)
     lstm_model.predict(train_reshaped, batch_size=1)
 
-    # walk-forward validation on the test data
+    # A prdeikció és a valós értékek összehasonlítása.
     predictions = list()
     for i in range(len(test_scaled[name])):
         # make one-step forecast
@@ -134,14 +145,20 @@ for name in names:
         print("Expected: {0}, Predicted: {1}".format(expected, yhat))
 
     # report performance
-    rmse = sqrt(mean_squared_error(data_dictionary[name][-74:-1], predictions))
+    rmse = sqrt(mean_squared_error(data_dictionary[name][-73:], predictions))
     print('Test RMSE: %.3f' % rmse)
     # line plot of observed vs predicted
-    pyplot.title(name)
-    pyplot.xlabel("day")
-    pyplot.ylabel("income [$]")
-    pyplot.plot(data_dictionary[name][-74:-1])
-    pyplot.plot(predictions)
+    fig = pyplot.figure()
+    fig.suptitle(name)
+    plot = fig.add_subplot(111)
+    fig.subplots_adjust(top=0.5)
+
+    plot.set_title("RMSE: %.3f" % rmse)
+    plot.set_xlabel("day")
+    plot.set_ylabel("income [$]")
+    # pyplot.text(0.5, 0.5, "RMSE: %.3f" % rmse)
+    plot.plot(data_dictionary[name][-73:])
+    plot.plot(predictions)
     pyplot.show()
     # pyplot.savefig(name + ".png")
 
