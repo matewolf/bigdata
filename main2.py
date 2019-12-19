@@ -119,10 +119,10 @@ for name, data in df_district:
     scaler_dict[name], train_scaled[name], test_scaled[name] = scale(train[name], test[name])
 
 # A names tupleban szereplő kerületeket prediktáljuk.
-names = ("Union Sq", "JFK Airport")
+names = ("Union Sq", "JFK Airport", "Governor's Island/Ellis Island/Liberty Island")
 for name in names:
     # A modell tanítása.
-    lstm_model = fit_lstm(train_scaled[name], 1, 300, 4)
+    lstm_model = fit_lstm(train_scaled[name], 1, 500, 4)
 
     # A háló jellegéből adódóan a tanítás után végig kell futtatni a tanító adatokat, hogy a háló tudjin emlékezni.
     train_reshaped = train_scaled[name][:, 0].reshape(len(train_scaled[name]), 1, 1)
@@ -144,23 +144,20 @@ for name in names:
         # expected = y
         print("Expected: {0}, Predicted: {1}".format(expected, yhat))
 
-    # report performance
+    # Az eredmények megjelenítése
     rmse = sqrt(mean_squared_error(data_dictionary[name][-73:], predictions))
     print('Test RMSE: %.3f' % rmse)
-    # line plot of observed vs predicted
-    fig = pyplot.figure()
-    fig.suptitle(name)
-    plot = fig.add_subplot(111)
-    fig.subplots_adjust(top=0.5)
-
-    plot.set_title("RMSE: %.3f" % rmse)
-    plot.set_xlabel("day")
-    plot.set_ylabel("income [$]")
-    # pyplot.text(0.5, 0.5, "RMSE: %.3f" % rmse)
-    plot.plot(data_dictionary[name][-73:])
-    plot.plot(predictions)
+    pyplot.title(name)
+    pyplot.xlabel("day")
+    pyplot.ylabel("income [$]")
+    pyplot.plot(data_dictionary[name][-73:])
+    pyplot.plot(predictions)
     pyplot.show()
-    # pyplot.savefig(name + ".png")
 
-    with open("mse.txt", "a+") as file:
-        file.write("District name: {0}\trmse: {1}".format(name, rmse))
+# Az eredményből az látszik, hogy a valamiféle minákat követő kerületek esetében a háló pontosabban megjósolja a
+# bevételt, míg azon kerületek esetében amelyeknél a forgalom is kicsi, valamint véletlenszerű, az eredmény is
+# pontatlan.
+#
+# Egyenletes elosztásra a JFK Airportot hoztuk példának, míg a periodikus eloszlásra példa a Union Square, ahol NY
+# egyik legnagyobb termelői piaca. A véletlenszerű eloszlásra hoztuk példaként Governor's Islandet, amelyet például nem
+# is lehet megközelíteni műóton személygépjárművel, így taxival sem.
